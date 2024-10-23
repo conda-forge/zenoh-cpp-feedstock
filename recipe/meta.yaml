@@ -1,5 +1,5 @@
 {% set name = "libzenohcxx" %}
-{% set version = "0.11.0" %}
+{% set version = "1.0.0" %}
 
 package:
   name: {{ name }}
@@ -7,7 +7,7 @@ package:
 
 source:
   - url: https://github.com/eclipse-zenoh/zenoh-cpp/archive/refs/tags/{{ version }}.tar.gz
-    sha256: 62e9a51ced89130d7a49a1e8f801308338d972e62b90c5224f5801171bd90af0
+    sha256: ffd3cb8c8263f842479c93c0e380583a2749f2c99cff0e46e5e81f1de47cb793
     patches:
       - 136.patch
       - disable_tests_examples_and_docs.patch
@@ -43,7 +43,7 @@ about:
   home: https://github.com/eclipse-zenoh/zenoh-cpp
   license: Apache-2.0 OR EPL-2.0
   license_file: LICENSE
-  summary:  C++ API for zenoh
+  summary: C++ API for zenoh
 
 extra:
   feedstock-name: zenoh-cpp

@@ -8,6 +8,8 @@ package:
 source:
   - url: https://github.com/eclipse-zenoh/zenoh-cpp/archive/refs/tags/{{ version }}.tar.gz
     sha256: 843c20865148ea409a6b2a1a395b1c3ff1f9a824af648e628c023150d5a9fffd
+    patches:
+      - nowerror.patch
 
 build:
   number: 0

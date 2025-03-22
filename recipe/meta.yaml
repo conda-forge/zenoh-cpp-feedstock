@@ -13,6 +13,8 @@ source:
 
 build:
   number: 0
+  # See https://github.com/conda-forge/zenoh-c-feedstock/issues/37
+  skip: true  # [ppc64le]
 
 requirements:
   build:

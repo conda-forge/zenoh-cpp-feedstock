@@ -1,5 +1,5 @@
 {% set name = "libzenohcxx" %}
-{% set version = "1.3.0" %}
+{% set version = "1.3.3" %}
 
 package:
   name: {{ name }}
@@ -7,7 +7,7 @@ package:
 
 source:
   - url: https://github.com/eclipse-zenoh/zenoh-cpp/archive/refs/tags/{{ version }}.tar.gz
-    sha256: 97f47e5949778b6bce8b519a817c4798044febb2c0286351cf11d192e3abdf0e
+    sha256: 9006678da32d64198a6b6fafd377c4bcbb093624f9884a2cd98929203882c444
     patches:
       - nowerror.patch
 

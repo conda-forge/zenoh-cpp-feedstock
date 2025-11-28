@@ -18,5 +18,10 @@ cmake --build . --config Release --target tests
 
 
 if [[ "${CONDA_BUILD_CROSS_COMPILATION:-}" != "1" || "${CROSSCOMPILING_EMULATOR}" != "" ]]; then
+  # Best-effort raise locked-memory (memlock) limit.
+  # CI/container may ignore or cap this, so we don't hard-fail.
+  if [[ "${target_platform}" == linux-* ]] && command -v prlimit >/dev/null 2>&1; then
+    prlimit --pid="$$" --memlock=unlimited || echo "prlimit memlock failed (CI cap?)"
+  fi
   ctest --output-on-failure -C Release 
 fi

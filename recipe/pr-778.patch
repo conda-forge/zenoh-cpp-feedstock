@@ -1,47 +1,5 @@
-From cd47290c9e2cc00a64d7eacedc679ac3f72da0a8 Mon Sep 17 00:00:00 2001
-From: Janosch Machowinski <jmachowinski@users.noreply.github.com>
-Date: Wed, 15 Apr 2026 09:50:27 +0000
-Subject: [PATCH 1/7] fix: Compile fix for MSVC 2022
-
----
- include/zenoh/detail/closures.hxx | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
-
-diff --git a/include/zenoh/detail/closures.hxx b/include/zenoh/detail/closures.hxx
-index 86f9ab6c..38d80a29 100644
---- a/include/zenoh/detail/closures.hxx
-+++ b/include/zenoh/detail/closures.hxx
-@@ -55,7 +55,7 @@ class Droppable : public IDroppable {
- 
-     template <class DD>
-     static void* into_context(DD&& drop) {
--        auto obj = new Droppable<D>(std::forward<DD>(drop));
-+        auto obj = new Droppable<std::remove_cvref_t<DD>>(std::forward<DD>(drop));
-         return obj->as_context();
-     }
- };
-@@ -75,7 +75,7 @@ class Closure : public IClosure<R, Args...> {
- 
-     template <class CC, class DD>
-     static void* into_context(CC&& call, DD&& drop) {
--        auto obj = new Closure<C, D, R, Args...>(std::forward<CC>(call), std::forward<DD>(drop));
-+        auto obj = new Closure<std::remove_cvref_t<CC>, std::remove_cvref_t<DD>, R, Args...>(std::forward<CC>(call), std::forward<DD>(drop));
-         return obj->as_context();
-     }
- };
-
-From 6c2b0c5707f965b47ce07cfcbc24d3da135fd6b4 Mon Sep 17 00:00:00 2001
-From: Janosch Machowinski <jmachowinski@users.noreply.github.com>
-Date: Wed, 15 Apr 2026 22:15:04 +0000
-Subject: [PATCH 2/7] second try
-
----
- include/zenoh/api/bytes.hxx       | 34 +++++++++++++++++--------------
- include/zenoh/detail/closures.hxx |  4 ++--
- 2 files changed, 21 insertions(+), 17 deletions(-)
-
 diff --git a/include/zenoh/api/bytes.hxx b/include/zenoh/api/bytes.hxx
-index bd97f660..c1ec3488 100644
+index bd97f66..c60808a 100644
 --- a/include/zenoh/api/bytes.hxx
 +++ b/include/zenoh/api/bytes.hxx
 @@ -64,11 +64,12 @@ class Bytes : public Owned<::z_owned_bytes_t> {
@@ -53,16 +11,26 @@ index bd97f660..c1ec3488 100644
 -        using Dval = std::remove_reference_t<D>;
 -        using DroppableType = typename detail::closures::Droppable<Dval>;
 -        auto drop = DroppableType::into_context(std::move(d));
-+         struct VectorDeleter {
++        struct VectorDeleter {
 +            std::vector<uint8_t, Allocator>* ptr;
 +            void operator()() { delete ptr; };
-+        }; 
++        };
 +        using DroppableType = typename detail::closures::Droppable<VectorDeleter>;
-+        auto drop = DroppableType::into_context(std::move(VectorDeleter(ptr)));
++        auto drop = DroppableType::into_context(VectorDeleter{ptr});
          ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), ptr->data(), ptr->size(),
                             detail::closures::_zenoh_drop_with_context, drop);
      }
-@@ -89,11 +90,12 @@ class Bytes : public Owned<::z_owned_bytes_t> {
+@@ -81,19 +82,20 @@ class Bytes : public Owned<::z_owned_bytes_t> {
+     }
+ 
+     /// @brief Construct by copying sequence of charactes.
+-    Bytes(const char* v) : Bytes(std::string_view(v)){};
++    Bytes(const char* v) : Bytes(std::string_view(v)) {}
+ 
+     /// @brief Construct by copying sequence of charactes.
+-    Bytes(const std::string& v) : Bytes(std::string_view(v)){};
++    Bytes(const std::string& v) : Bytes(std::string_view(v)) {}
+ 
      /// @brief Construct by moving a string.
      Bytes(std::string&& v) : Bytes() {
          std::string* ptr = new std::string(std::move(v));
@@ -76,7 +44,7 @@ index bd97f660..c1ec3488 100644
 +            void operator()() { delete ptr; }
 +        };
 +        using DroppableType = typename detail::closures::Droppable<StringDeleter>;
-+        auto drop = DroppableType::into_context(std::move(StringDeleter(ptr)));
++        auto drop = DroppableType::into_context(StringDeleter{ptr});
          ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), reinterpret_cast<uint8_t*>(ptr->data()), ptr->size(),
                             detail::closures::_zenoh_drop_with_context, drop);
      }
@@ -95,220 +63,7 @@ index bd97f660..c1ec3488 100644
 +            void operator()() { deleter(ptr); }
 +        };
 +        using DroppableType = typename detail::closures::Droppable<CustomDeleter>;
-+        auto drop = DroppableType::into_context(std::move(CustomDeleter(ptr, std::move(deleter))));
-         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), ptr, len, detail::closures::_zenoh_drop_with_context, drop);
-     }
- 
-diff --git a/include/zenoh/detail/closures.hxx b/include/zenoh/detail/closures.hxx
-index 38d80a29..86f9ab6c 100644
---- a/include/zenoh/detail/closures.hxx
-+++ b/include/zenoh/detail/closures.hxx
-@@ -55,7 +55,7 @@ class Droppable : public IDroppable {
- 
-     template <class DD>
-     static void* into_context(DD&& drop) {
--        auto obj = new Droppable<std::remove_cvref_t<DD>>(std::forward<DD>(drop));
-+        auto obj = new Droppable<D>(std::forward<DD>(drop));
-         return obj->as_context();
-     }
- };
-@@ -75,7 +75,7 @@ class Closure : public IClosure<R, Args...> {
- 
-     template <class CC, class DD>
-     static void* into_context(CC&& call, DD&& drop) {
--        auto obj = new Closure<std::remove_cvref_t<CC>, std::remove_cvref_t<DD>, R, Args...>(std::forward<CC>(call), std::forward<DD>(drop));
-+        auto obj = new Closure<C, D, R, Args...>(std::forward<CC>(call), std::forward<DD>(drop));
-         return obj->as_context();
-     }
- };
-
-From 15f2dbdb843a3c1bb49085d914be6473ee3816a8 Mon Sep 17 00:00:00 2001
-From: Janosch Machowinski <jmachowinski@users.noreply.github.com>
-Date: Fri, 17 Apr 2026 15:33:38 +0000
-Subject: [PATCH 3/7] fix: Fix compilation on c++17 / linux platforms
-
----
- include/zenoh/api/bytes.hxx | 6 +++---
- 1 file changed, 3 insertions(+), 3 deletions(-)
-
-diff --git a/include/zenoh/api/bytes.hxx b/include/zenoh/api/bytes.hxx
-index c1ec3488..0e29aaab 100644
---- a/include/zenoh/api/bytes.hxx
-+++ b/include/zenoh/api/bytes.hxx
-@@ -69,7 +69,7 @@ class Bytes : public Owned<::z_owned_bytes_t> {
-             void operator()() { delete ptr; };
-         }; 
-         using DroppableType = typename detail::closures::Droppable<VectorDeleter>;
--        auto drop = DroppableType::into_context(std::move(VectorDeleter(ptr)));
-+        auto drop = DroppableType::into_context(std::move(VectorDeleter({.ptr = ptr})));
-         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), ptr->data(), ptr->size(),
-                            detail::closures::_zenoh_drop_with_context, drop);
-     }
-@@ -95,7 +95,7 @@ class Bytes : public Owned<::z_owned_bytes_t> {
-             void operator()() { delete ptr; }
-         };
-         using DroppableType = typename detail::closures::Droppable<StringDeleter>;
--        auto drop = DroppableType::into_context(std::move(StringDeleter(ptr)));
-+        auto drop = DroppableType::into_context(std::move(StringDeleter({.ptr = ptr})));
-         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), reinterpret_cast<uint8_t*>(ptr->data()), ptr->size(),
-                            detail::closures::_zenoh_drop_with_context, drop);
-     }
-@@ -116,7 +116,7 @@ class Bytes : public Owned<::z_owned_bytes_t> {
-             void operator()() { deleter(ptr); }
-         };
-         using DroppableType = typename detail::closures::Droppable<CustomDeleter>;
--        auto drop = DroppableType::into_context(std::move(CustomDeleter(ptr, std::move(deleter))));
-+        auto drop = DroppableType::into_context(std::move(CustomDeleter({.ptr = ptr, .deleter = std::move(deleter)})));
-         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), ptr, len, detail::closures::_zenoh_drop_with_context, drop);
-     }
- 
-
-From 3ac9818c3153ad1b8a55ba8f45f986d0c55d66e4 Mon Sep 17 00:00:00 2001
-From: Janosch Machowinski <jmachowinski@users.noreply.github.com>
-Date: Fri, 17 Apr 2026 17:00:52 +0000
-Subject: [PATCH 4/7] Use only c++17 features
-
----
- include/zenoh/api/bytes.hxx | 6 +++---
- 1 file changed, 3 insertions(+), 3 deletions(-)
-
-diff --git a/include/zenoh/api/bytes.hxx b/include/zenoh/api/bytes.hxx
-index 0e29aaab..ae265cc5 100644
---- a/include/zenoh/api/bytes.hxx
-+++ b/include/zenoh/api/bytes.hxx
-@@ -69,7 +69,7 @@ class Bytes : public Owned<::z_owned_bytes_t> {
-             void operator()() { delete ptr; };
-         }; 
-         using DroppableType = typename detail::closures::Droppable<VectorDeleter>;
--        auto drop = DroppableType::into_context(std::move(VectorDeleter({.ptr = ptr})));
-+        auto drop = DroppableType::into_context(std::move(VectorDeleter{ptr}));
-         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), ptr->data(), ptr->size(),
-                            detail::closures::_zenoh_drop_with_context, drop);
-     }
-@@ -95,7 +95,7 @@ class Bytes : public Owned<::z_owned_bytes_t> {
-             void operator()() { delete ptr; }
-         };
-         using DroppableType = typename detail::closures::Droppable<StringDeleter>;
--        auto drop = DroppableType::into_context(std::move(StringDeleter({.ptr = ptr})));
-+        auto drop = DroppableType::into_context(std::move(StringDeleter{ptr}));
-         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), reinterpret_cast<uint8_t*>(ptr->data()), ptr->size(),
-                            detail::closures::_zenoh_drop_with_context, drop);
-     }
-@@ -116,7 +116,7 @@ class Bytes : public Owned<::z_owned_bytes_t> {
-             void operator()() { deleter(ptr); }
-         };
-         using DroppableType = typename detail::closures::Droppable<CustomDeleter>;
--        auto drop = DroppableType::into_context(std::move(CustomDeleter({.ptr = ptr, .deleter = std::move(deleter)})));
-+        auto drop = DroppableType::into_context(std::move(CustomDeleter{ptr, std::move(deleter)}));
-         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), ptr, len, detail::closures::_zenoh_drop_with_context, drop);
-     }
- 
-
-From f8646754720497de0e71d10124071a812314e5d2 Mon Sep 17 00:00:00 2001
-From: Janosch Machowinski <jmachowinski@users.noreply.github.com>
-Date: Fri, 17 Apr 2026 21:46:16 +0000
-Subject: [PATCH 5/7] fix: remove unnecessary move in bytes.hxx
-
----
- include/zenoh/api/bytes.hxx | 6 +++---
- 1 file changed, 3 insertions(+), 3 deletions(-)
-
-diff --git a/include/zenoh/api/bytes.hxx b/include/zenoh/api/bytes.hxx
-index ae265cc5..96200373 100644
---- a/include/zenoh/api/bytes.hxx
-+++ b/include/zenoh/api/bytes.hxx
-@@ -69,7 +69,7 @@ class Bytes : public Owned<::z_owned_bytes_t> {
-             void operator()() { delete ptr; };
-         }; 
-         using DroppableType = typename detail::closures::Droppable<VectorDeleter>;
--        auto drop = DroppableType::into_context(std::move(VectorDeleter{ptr}));
-+        auto drop = DroppableType::into_context(VectorDeleter{ptr});
-         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), ptr->data(), ptr->size(),
-                            detail::closures::_zenoh_drop_with_context, drop);
-     }
-@@ -95,7 +95,7 @@ class Bytes : public Owned<::z_owned_bytes_t> {
-             void operator()() { delete ptr; }
-         };
-         using DroppableType = typename detail::closures::Droppable<StringDeleter>;
--        auto drop = DroppableType::into_context(std::move(StringDeleter{ptr}));
-+        auto drop = DroppableType::into_context(StringDeleter{ptr});
-         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), reinterpret_cast<uint8_t*>(ptr->data()), ptr->size(),
-                            detail::closures::_zenoh_drop_with_context, drop);
-     }
-@@ -116,7 +116,7 @@ class Bytes : public Owned<::z_owned_bytes_t> {
-             void operator()() { deleter(ptr); }
-         };
-         using DroppableType = typename detail::closures::Droppable<CustomDeleter>;
--        auto drop = DroppableType::into_context(std::move(CustomDeleter{ptr, std::move(deleter)}));
 +        auto drop = DroppableType::into_context(CustomDeleter{ptr, std::move(deleter)});
          ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), ptr, len, detail::closures::_zenoh_drop_with_context, drop);
      }
  
-
-From 3e3ab7e8b2b85c17d8389660b4af42b773a413c1 Mon Sep 17 00:00:00 2001
-From: Janosch Machowinski <J.Machowinski@cellumation.com>
-Date: Sat, 18 Apr 2026 15:57:35 +0200
-Subject: [PATCH 6/7] chore: clang-format
-
-Signed-off-by: Janosch Machowinski <J.Machowinski@cellumation.com>
----
- include/zenoh/api/bytes.hxx | 8 ++++----
- 1 file changed, 4 insertions(+), 4 deletions(-)
-
-diff --git a/include/zenoh/api/bytes.hxx b/include/zenoh/api/bytes.hxx
-index 96200373..d0e494a8 100644
---- a/include/zenoh/api/bytes.hxx
-+++ b/include/zenoh/api/bytes.hxx
-@@ -64,10 +64,10 @@ class Bytes : public Owned<::z_owned_bytes_t> {
-     template <class Allocator>
-     Bytes(std::vector<uint8_t, Allocator>&& v) : Bytes() {
-         std::vector<uint8_t, Allocator>* ptr = new std::vector<uint8_t, Allocator>(std::move(v));
--         struct VectorDeleter {
-+        struct VectorDeleter {
-             std::vector<uint8_t, Allocator>* ptr;
-             void operator()() { delete ptr; };
--        }; 
-+        };
-         using DroppableType = typename detail::closures::Droppable<VectorDeleter>;
-         auto drop = DroppableType::into_context(VectorDeleter{ptr});
-         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), ptr->data(), ptr->size(),
-@@ -82,10 +82,10 @@ class Bytes : public Owned<::z_owned_bytes_t> {
-     }
- 
-     /// @brief Construct by copying sequence of charactes.
--    Bytes(const char* v) : Bytes(std::string_view(v)){};
-+    Bytes(const char* v) : Bytes(std::string_view(v)) {};
- 
-     /// @brief Construct by copying sequence of charactes.
--    Bytes(const std::string& v) : Bytes(std::string_view(v)){};
-+    Bytes(const std::string& v) : Bytes(std::string_view(v)) {};
- 
-     /// @brief Construct by moving a string.
-     Bytes(std::string&& v) : Bytes() {
-
-From d0602b87eb31eb7285479a243cfd172b350d7b6a Mon Sep 17 00:00:00 2001
-From: Julien Enoch <julien.e@zettascale.tech>
-Date: Sun, 19 Apr 2026 21:24:23 +0200
-Subject: [PATCH 7/7] make clang-format happy
-
----
- include/zenoh/api/bytes.hxx | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
-
-diff --git a/include/zenoh/api/bytes.hxx b/include/zenoh/api/bytes.hxx
-index d0e494a8..c60808a7 100644
---- a/include/zenoh/api/bytes.hxx
-+++ b/include/zenoh/api/bytes.hxx
-@@ -82,10 +82,10 @@ class Bytes : public Owned<::z_owned_bytes_t> {
-     }
- 
-     /// @brief Construct by copying sequence of charactes.
--    Bytes(const char* v) : Bytes(std::string_view(v)) {};
-+    Bytes(const char* v) : Bytes(std::string_view(v)) {}
- 
-     /// @brief Construct by copying sequence of charactes.
--    Bytes(const std::string& v) : Bytes(std::string_view(v)) {};
-+    Bytes(const std::string& v) : Bytes(std::string_view(v)) {}
- 
-     /// @brief Construct by moving a string.
-     Bytes(std::string&& v) : Bytes() {

@@ -1,0 +1,59 @@
+From 25847da7128859187210b1fe2006b86cc82cceeb Mon Sep 17 00:00:00 2001
+From: yuanyuyuan <az6980522@gmail.com>
+Date: Tue, 14 Apr 2026 15:21:20 +0800
+Subject: [PATCH] fix(bytes): replace std::forward<D>(d) with std::move(d) in
+ move constructors
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+MSVC 19.44 (VS 2022 17.14) rejects std::forward<D>(d) when D is deduced
+as decltype(d) — a local lambda type (always non-reference). The compiler
+cannot convert the lvalue lambda to D&&, yielding C2665/C3536.
+
+std::move(d) is the correct form here: D is never a reference type in
+these constructors so std::forward<D> is semantically equivalent to
+std::move, but newer MSVC enforces the distinction.
+
+Affects three Bytes constructors:
+- Bytes(std::vector<uint8_t, Allocator>&&)
+- Bytes(std::string&&)
+- Bytes(uint8_t*, size_t, Deleter)
+
+Fixes ROS 2 buildfarm Windows build failure:
+https://ci.ros2.org/job/ci_windows/27547/
+---
+ include/zenoh/api/bytes.hxx | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/include/zenoh/api/bytes.hxx b/include/zenoh/api/bytes.hxx
+index d28effd2..bd97f660 100644
+--- a/include/zenoh/api/bytes.hxx
++++ b/include/zenoh/api/bytes.hxx
+@@ -68,7 +68,7 @@ class Bytes : public Owned<::z_owned_bytes_t> {
+         using D = decltype(d);
+         using Dval = std::remove_reference_t<D>;
+         using DroppableType = typename detail::closures::Droppable<Dval>;
+-        auto drop = DroppableType::into_context(std::forward<D>(d));
++        auto drop = DroppableType::into_context(std::move(d));
+         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), ptr->data(), ptr->size(),
+                            detail::closures::_zenoh_drop_with_context, drop);
+     }
+@@ -93,7 +93,7 @@ class Bytes : public Owned<::z_owned_bytes_t> {
+         using D = decltype(d);
+         using Dval = std::remove_reference_t<D>;
+         using DroppableType = typename detail::closures::Droppable<Dval>;
+-        auto drop = DroppableType::into_context(std::forward<D>(d));
++        auto drop = DroppableType::into_context(std::move(d));
+         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), reinterpret_cast<uint8_t*>(ptr->data()), ptr->size(),
+                            detail::closures::_zenoh_drop_with_context, drop);
+     }
+@@ -112,7 +112,7 @@ class Bytes : public Owned<::z_owned_bytes_t> {
+         using D = decltype(d);
+         using Dval = std::remove_reference_t<D>;
+         using DroppableType = typename detail::closures::Droppable<Dval>;
+-        auto drop = DroppableType::into_context(std::forward<D>(d));
++        auto drop = DroppableType::into_context(std::move(d));
+         ::z_bytes_from_buf(interop::as_owned_c_ptr(*this), ptr, len, detail::closures::_zenoh_drop_with_context, drop);
+     }
+ 

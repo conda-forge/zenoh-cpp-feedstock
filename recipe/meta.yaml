@@ -11,7 +11,6 @@ source:
     patches:
       - nowerror.patch
 
-
 build:
   number: 0
   # See https://github.com/conda-forge/zenoh-c-feedstock/issues/37

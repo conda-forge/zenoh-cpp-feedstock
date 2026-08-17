@@ -10,8 +10,7 @@ source:
     sha256: c7aed678b421dcce0e3c39fa9ce5dc9bdd92180000beca1e0db9e0c6e78a4f3d
     patches:
       - nowerror.patch
-      - pr-776.patch
-      - pr-778.patch
+
 
 build:
   number: 0

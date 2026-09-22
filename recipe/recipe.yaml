@@ -2,7 +2,7 @@ schema_version: 1
 
 context:
   name: libzenohcxx
-  version: "1.10.0"
+  version: "1.10.1"
 
 package:
   name: ${{ name }}
@@ -10,13 +10,13 @@ package:
 
 source:
   - url: https://github.com/eclipse-zenoh/zenoh-cpp/archive/refs/tags/${{ version }}.tar.gz
-    sha256: c7aed678b421dcce0e3c39fa9ce5dc9bdd92180000beca1e0db9e0c6e78a4f3d
+    sha256: 64d3c315c4fdfa54b4d96ee27ee2b3d98320b0fb289402fff9d7a99bc513528e
     patches:
       - nowerror.patch
 
 build:
   # See https://github.com/conda-forge/zenoh-c-feedstock/issues/37
-  number: 1
+  number: 0
   skip: ppc64le
 
 requirements:

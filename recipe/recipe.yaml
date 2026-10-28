@@ -2,7 +2,7 @@ schema_version: 1
 
 context:
   name: libzenohcxx
-  version: "1.10.1"
+  version: "1.10.2"
 
 package:
   name: ${{ name }}
@@ -10,7 +10,7 @@ package:
 
 source:
   - url: https://github.com/eclipse-zenoh/zenoh-cpp/archive/refs/tags/${{ version }}.tar.gz
-    sha256: 64d3c315c4fdfa54b4d96ee27ee2b3d98320b0fb289402fff9d7a99bc513528e
+    sha256: db7e3993cd398391adb254bfcb91ce8909157f52b6fb2d7eb47ce4e9710273a6
     patches:
       - nowerror.patch
 
